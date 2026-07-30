@@ -324,3 +324,10 @@ This is currently a personal portfolio project; issues and suggestions are welco
 ## License
 
 MIT
+
+
+Version 1: Foundation
+Version 2: Health Tracking
+Version 3: AI + Memory + Recommendations
+Version 4: Notifications + Automation
+Version 5: RAG + Production Polish

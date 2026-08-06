@@ -1,47 +1,38 @@
 """
 Request logging middleware.
 
-Why this file exists:
-    Without this, debugging a production issue means grepping logs with no
-    way to tie "request came in" to "request finished" to "this specific
-    exception happened" — especially once multiple requests are in flight
-    concurrently (which they will be, since everything's async). This
-    middleware assigns a short request_id to every request and logs entry
-    + exit + duration, so every log line in between can be correlated by
-    that id.
-
-Which files use this:
-    Registered once in app/main.py via app.add_middleware(...).
+Logs method, path, status code, and latency for every request, and attaches
+a correlation ID (both to the log line and the response header) so a single
+request can be traced through logs even when background tasks or scheduled
+jobs log things asynchronously around the same time.
 """
 
+import logging
 import time
 import uuid
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
-from app.utils.logger import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger("vitamind.request")
 
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
+class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        request_id = uuid.uuid4().hex[:12]
-        request.state.request_id = request_id
-
+        correlation_id = str(uuid.uuid4())
         start = time.perf_counter()
-        logger.info(
-            "request started request_id=%s method=%s path=%s",
-            request_id, request.method, request.url.path,
-        )
 
         response = await call_next(request)
 
         duration_ms = (time.perf_counter() - start) * 1000
+        response.headers["X-Correlation-ID"] = correlation_id
+
         logger.info(
-            "request finished request_id=%s status=%s duration_ms=%.1f",
-            request_id, response.status_code, duration_ms,
+            "%s %s -> %s (%.1fms) [%s]",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            correlation_id,
         )
-        response.headers["X-Request-ID"] = request_id
         return response

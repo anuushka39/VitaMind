@@ -1,41 +1,55 @@
+"""Pydantic schemas for the Meal resource."""
+
 from datetime import datetime
-from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
-MealType = Literal["breakfast", "lunch", "dinner", "snack"]
-
-
-class MealCreate(BaseModel):
-    meal_type: MealType
-    items: list[str] = Field(min_length=1)
-    calories: float | None = Field(default=None, ge=0)
-    protein_g: float | None = Field(default=None, ge=0)
-    carbs_g: float | None = Field(default=None, ge=0)
-    fat_g: float | None = Field(default=None, ge=0)
-    logged_at: datetime | None = None  # defaults to now() in the service if omitted
+from app.models.meal import HealthStatus
 
 
-class MealUpdate(BaseModel):
-    meal_type: MealType | None = None
-    items: list[str] | None = Field(default=None, min_length=1)
-    calories: float | None = Field(default=None, ge=0)
-    protein_g: float | None = Field(default=None, ge=0)
-    carbs_g: float | None = Field(default=None, ge=0)
-    fat_g: float | None = Field(default=None, ge=0)
+class MealAnalysisResult(BaseModel):
+    """
+    What gemini_client.analyze_meal_image() returns — kept separate from
+    MealOut because this is the raw AI output shape, not the DB row shape.
+    health_status/reason replace the old locally-computed healthy_score:
+    Gemini now classifies the meal itself, reasoning over fiber, processing,
+    cooking method, etc., not just macros.
+    """
+
+    detected_food: str
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    health_status: HealthStatus
+    reason: str
 
 
-class MealRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class MealOut(BaseModel):
     id: int
     user_id: int
-    meal_type: str
-    items: list[str]
-    calories: float | None
-    protein_g: float | None
-    carbs_g: float | None
-    fat_g: float | None
-    logged_at: datetime
+    image_url: str | None = None
+    detected_food: str
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    health_status: HealthStatus
+    reason: str | None = None
+    meal_time: datetime
     created_at: datetime
-    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MealUploadResponse(BaseModel):
+    """
+    meal: the logged, structured record.
+    reply: the natural, conversational message to show the user (what the
+    bot actually says) — always present, not just for unhealthy meals. See
+    MealService._compose_reply for how it's generated and the fallback used
+    if Gemini's phrasing call fails.
+    """
+
+    meal: MealOut
+    reply: str

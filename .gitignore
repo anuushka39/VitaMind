@@ -1,14 +1,26 @@
+# Python
 __pycache__/
 *.py[cod]
-.venv/
-venv/
-.env
 *.egg-info/
 .pytest_cache/
-.coverage
-htmlcov/
-chroma_store/
-.DS_Store
+.ruff_cache/
+
+# Env / secrets
+.env
+
+# Virtual environments
+venv/
+.venv/
+
+# Logs
+logs/
 *.log
-*.db
-vitamind.db
+
+# FAISS index artifacts (rebuild locally via scripts/build_faiss_index.py;
+# not committed since they're derived, regeneratable, and can be large)
+data/faiss_index/
+
+# OS/editor cruft
+.DS_Store
+.idea/
+.vscode/

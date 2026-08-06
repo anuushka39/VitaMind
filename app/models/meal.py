@@ -1,31 +1,43 @@
-"""Meal log entries."""
+"""
+Meal ORM model.
 
-from datetime import datetime
+health_status replaces the old numeric healthy_score: Gemini now classifies
+the meal itself (reasoning over fiber, processing, cooking method, etc.,
+not just macros), so the DB stores that classification directly instead of
+a locally-computed heuristic score. reason stores Gemini's one-line
+justification, both for transparency and because it's reused as grounding
+when composing the conversational reply.
+"""
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, Float, ForeignKey, Index, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+import enum
 
-from app.database.base import Base, TimestampMixin
+from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
+
+from app.db.base import Base
 
 
-class Meal(Base, TimestampMixin):
+class HealthStatus(enum.StrEnum):
+    healthy = "healthy"
+    moderate = "moderate"
+    unhealthy = "unhealthy"
+
+
+class Meal(Base):
     __tablename__ = "meals"
-    __table_args__ = (
-        Index("ix_meals_user_logged_at", "user_id", "logged_at"),
-        CheckConstraint("calories IS NULL OR calories >= 0", name="ck_meals_calories_nonneg"),
-        CheckConstraint("protein_g IS NULL OR protein_g >= 0", name="ck_meals_protein_nonneg"),
-        CheckConstraint("carbs_g IS NULL OR carbs_g >= 0", name="ck_meals_carbs_nonneg"),
-        CheckConstraint("fat_g IS NULL OR fat_g >= 0", name="ck_meals_fat_nonneg"),
-    )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    meal_type: Mapped[str] = mapped_column(String(20), nullable=False)  # breakfast|lunch|dinner|snack
-    items: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    calories: Mapped[float | None] = mapped_column(Float)
-    protein_g: Mapped[float | None] = mapped_column(Float)
-    carbs_g: Mapped[float | None] = mapped_column(Float)
-    fat_g: Mapped[float | None] = mapped_column(Float)
-    logged_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
-    user: Mapped["User"] = relationship(back_populates="meals")
+    image_url = Column(String(255), nullable=True)
+    detected_food = Column(String(255), nullable=False)
+
+    calories = Column(Float, nullable=False, default=0)
+    protein_g = Column(Float, nullable=False, default=0)
+    carbs_g = Column(Float, nullable=False, default=0)
+    fat_g = Column(Float, nullable=False, default=0)
+
+    health_status = Column(Enum(HealthStatus), nullable=False, index=True)
+    reason = Column(Text, nullable=True)
+
+    meal_time = Column(DateTime, server_default=func.now(), nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)

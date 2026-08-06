@@ -1,64 +1,87 @@
 """
 Application entrypoint.
 
-Why this file exists:
-    This is the only file that assembles the app — creates the FastAPI
-    instance, registers middleware, exception handlers, and routers. It
-    intentionally contains no business logic; if you find yourself writing
-    an `if` statement here beyond wiring, it belongs in a service instead.
-
-V2 change: registers the tracking routers (users, preferences, meals,
-exercise, water, sleep, weight, goals, dashboard). Version bumped to 0.2.0.
-
-Run with:
-    uvicorn app.main:app --reload --port 8000
+Wires together everything built so far: logging, DB table creation,
+exception handlers, middleware, the scheduler, the vector store, and all
+v1 routers (CRUD + meals/conversation/reminders + Telegram/WhatsApp
+webhooks). Uses FastAPI's lifespan context manager to run startup/shutdown
+logic around the app's serving lifetime.
 """
 
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 
-from app.api import dashboard, exercise, goals, health, meals, preferences, sleep, users, water, weight
-from app.config.settings import settings
-from app.database.session import engine
-from app.middleware.error_handlers import register_exception_handlers
-from app.middleware.logging_middleware import RequestLoggingMiddleware
-from app.utils.logger import get_logger
+templates = Jinja2Templates(directory="app/templates")
 
-logger = get_logger(__name__)
+from app.api.v1 import conversation, health, meals, reminders, reports, users
+from app.api.webhooks import telegram
+from app.core.config import settings
+from app.core.exceptions import register_exception_handlers
+from app.core.logging import configure_logging
+from app.db.init_db import init_db
+from app.middleware.logging_middleware import LoggingMiddleware
+from app.middleware.rate_limit_middleware import RateLimitMiddleware
+from app.scheduler.scheduler import start_scheduler, stop_scheduler
+from app.vectorstore.store import get_retriever
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting %s in %s mode", settings.app_name, settings.env)
+    configure_logging()
+    init_db()
+
+    try:
+        # Loads the persisted FAISS index if one exists, or builds and
+        # saves one on the spot if this is a fresh clone -- warming it here
+        # means the first real user request never pays the index-build
+        # cost. Wrapped in try/except because recommendations are a
+        # best-effort feature: a missing knowledge base or a failed model
+        # download should not prevent the rest of the app (meal logging,
+        # reminders, everything else) from starting.
+        get_retriever()
+    except Exception:
+        logger.exception(
+            "Vector store unavailable at startup -- recommendations will be skipped until "
+            "scripts/build_faiss_index.py has been run successfully."
+        )
+
+    start_scheduler()
     yield
-    logger.info("Shutting down %s, disposing DB engine", settings.app_name)
-    engine.dispose()
+    stop_scheduler()
 
 
-def create_app() -> FastAPI:
-    app = FastAPI(
-        title=settings.app_name,
-        version="0.2.0",
-        description="AI-powered nutrition and lifestyle assistant.",
-        lifespan=lifespan,
+app = FastAPI(
+    title=settings.APP_NAME,
+    debug=settings.DEBUG,
+    lifespan=lifespan,
+)
+
+register_exception_handlers(app)
+
+# Middleware order matters: Starlette runs middleware in reverse of add
+# order for the request path, so rate limiting (added last) runs first,
+# rejecting over-limit requests before they're even logged as "handled" —
+# only requests that pass the rate limit get a full logged entry.
+app.add_middleware(LoggingMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
+app.include_router(health.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
+app.include_router(meals.router, prefix="/api/v1")
+app.include_router(conversation.router, prefix="/api/v1")
+app.include_router(reminders.router, prefix="/api/v1")
+app.include_router(reports.router, prefix="/api/v1")
+app.include_router(telegram.router , prefix="/api/v1")
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request}
     )
-
-    app.add_middleware(RequestLoggingMiddleware)
-    register_exception_handlers(app)
-
-    app.include_router(health.router)
-    app.include_router(users.router)
-    app.include_router(preferences.router)
-    app.include_router(meals.router)
-    app.include_router(exercise.router)
-    app.include_router(water.router)
-    app.include_router(sleep.router)
-    app.include_router(weight.router)
-    app.include_router(goals.router)
-    app.include_router(dashboard.router)
-
-    return app
-
-
-app = create_app()

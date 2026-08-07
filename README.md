@@ -81,7 +81,7 @@ Most nutrition-tracking apps fail for one of three reasons:
                          ▼                                 ▼
               Telegram/WhatsApp send             recommendation_service.py
 
-
+```
 vitamind/
 ├── app/
 │   ├── main.py                     # FastAPI app factory, router registration, startup/shutdown events
@@ -178,9 +178,9 @@ vitamind/
 6. Background task (FastAPI BackgroundTasks): sends the formatted reply back via Telegram/WhatsApp client
    — this is what "asynchronous inference workflow reducing latency" means: the HTTP response to
    the webhook returns fast; the actual outbound message send happens as a background task.
-
+```
 ## Database Schema (MySQL)
-
+```
 users
 ──────────────────────────────
 id              BIGINT PK
@@ -227,7 +227,7 @@ status          ENUM('pending','sent','confirmed','snoozed')
 retry_count     INT DEFAULT 0
 created_at      DATETIME
 
-
+```
 ## Setup
 
 ```bash

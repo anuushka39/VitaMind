@@ -29,5 +29,5 @@ langchain==0.3.7
 langchain-community==0.3.7
 langchain-huggingface==0.1.2
 langchain-text-splitters==0.3.2
-faiss-cpu==1.9.0             # backing FAISS implementation LangChain's vectorstore wraps
+faiss-cpu==1.15.0             # backing FAISS implementation LangChain's vectorstore wraps
 sentence-transformers==3.2.1 # backing model runner HuggingFaceEmbeddings wraps

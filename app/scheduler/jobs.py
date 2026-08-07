@@ -24,7 +24,7 @@ from app.repositories.reminder_repo import ReminderRepository
 
 logger = logging.getLogger(__name__)
 
-SLEEP_RETRY_INTERVAL_MINUTES = 1
+SLEEP_RETRY_INTERVAL_MINUTES = 30
 SLEEP_RETRY_MAX_ATTEMPTS = 6  # caps the retry loop at 3 hours of nagging
 
 REMINDER_SYSTEM_PROMPT = """

@@ -162,7 +162,7 @@ vitamind/
 ├── Dockerfile                       # optional, for Render
 ├── .github/workflows/ci.yml
 └── README.md
-
+```
 ## Request Flow (example: meal image upload)
 
 1. User sends photo → Telegram/WhatsApp webhook hits /api/v1/meals/upload
@@ -178,7 +178,7 @@ vitamind/
 6. Background task (FastAPI BackgroundTasks): sends the formatted reply back via Telegram/WhatsApp client
    — this is what "asynchronous inference workflow reducing latency" means: the HTTP response to
    the webhook returns fast; the actual outbound message send happens as a background task.
-```
+
 ## Database Schema (MySQL)
 ```
 users

@@ -44,7 +44,9 @@ async def lifespan(app: FastAPI):
         # best-effort feature: a missing knowledge base or a failed model
         # download should not prevent the rest of the app (meal logging,
         # reminders, everything else) from starting.
-        get_retriever()
+         
+    # get_retriever()
+        logger.info("Skipping retriever during startup")
     except Exception:
         logger.exception(
             "Vector store unavailable at startup -- recommendations will be skipped until "
